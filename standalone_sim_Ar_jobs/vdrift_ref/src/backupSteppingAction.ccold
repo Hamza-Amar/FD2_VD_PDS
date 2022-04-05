@@ -1,0 +1,358 @@
+// Arapuca simulation
+// Authors: L. Paulucci & F. Marinho
+// Date: 20th September 2016
+//
+// Added modifications should be reported in arapuca.cc header comments
+
+#include "G4SystemOfUnits.hh"
+#include "G4SteppingManager.hh"
+
+#include "SteppingAction.hh"
+#include "RunAction.hh"
+#include "EventAction.hh"
+#include "DetectorConstruction.hh"
+#include "G4Alpha.hh"
+#include "g4root.hh"
+
+SteppingAction::SteppingAction(RunAction* run, DetectorConstruction* det)
+:fRun(run),fDetector(det)
+{ 
+  idx=0;
+  eveti = 0;
+}
+
+SteppingAction::~SteppingAction()
+{ 
+
+  for(p=imap.begin(); p!=imap.end(); p++){
+    G4cout << p->first << " " << p->second << G4endl;
+  }
+
+}
+
+void SteppingAction::UserSteppingAction(const G4Step* aStep)
+  
+{ 
+  // Analysis manager
+  
+  G4AnalysisManager* man = G4AnalysisManager::Instance();
+  
+  man->FillNtupleIColumn(1,0,fRun->GetNumEvent());
+  man->FillNtupleIColumn(1,1,aStep->GetTrack()->GetDynamicParticle()->GetPDGcode());
+  man->FillNtupleIColumn(1,2,aStep->GetTrack()->GetTrackID());
+  man->FillNtupleIColumn(1,3,aStep->GetTrack()->GetParentID());
+  man->FillNtupleDColumn(1,4,aStep->GetTrack()->GetPosition().x()/nm);
+  man->FillNtupleDColumn(1,5,aStep->GetTrack()->GetPosition().y()/nm);
+  man->FillNtupleDColumn(1,6,aStep->GetTrack()->GetPosition().z()/nm);
+  man->FillNtupleDColumn(1,7,aStep->GetTotalEnergyDeposit()/eV);
+  man->FillNtupleDColumn(1,8,aStep->GetTrack()->GetKineticEnergy()/eV);
+
+  
+  G4cout << "evt: "<< fRun->GetNumEvent();
+    G4cout << ", pdg: " << aStep->GetTrack()->GetDynamicParticle()->GetPDGcode();
+    G4cout << ", name: " << aStep->GetTrack()->GetDynamicParticle()->GetDefinition()->GetParticleName();
+    G4cout << ", pid: " << aStep->GetTrack()->GetTrackID();
+    G4cout << ", mid: " << aStep->GetTrack()->GetParentID();
+    G4cout << ", x:   " << aStep->GetTrack()->GetPosition().x()/um;
+    G4cout << ", y:   " << aStep->GetTrack()->GetPosition().y()/um;
+    G4cout << ", z:   " << aStep->GetTrack()->GetPosition().z()/um;
+    G4cout << ", de:  " << aStep->GetTotalEnergyDeposit()/eV;
+    G4cout << ", e:   " << aStep->GetTrack()->GetKineticEnergy()/eV;
+
+    if(aStep->GetTrack()->GetNextVolume()!=0){
+      G4cout << ", vol: " << aStep->GetTrack()->GetNextVolume()->GetName();
+      std::pair<int,int> aux = VolumeCode( aStep->GetTrack()->GetNextVolume()->GetName());
+      man->FillNtupleIColumn(1,9,aux.first);
+      man->FillNtupleIColumn(1,10,aStep->GetPostStepPoint()->GetTouchableHandle()->GetReplicaNumber());
+      G4cout << " " << aux.first;
+      G4cout << " " << aStep->GetPostStepPoint()->GetTouchableHandle()->GetReplicaNumber();
+      if(aStep->GetPostStepPoint()->GetTouchableHandle()->GetVolume()->GetName()!="World"){
+	man->FillNtupleIColumn(1,11,aux.second);
+	man->FillNtupleIColumn(1,12,aStep->GetPostStepPoint()->GetTouchableHandle()->GetReplicaNumber(1));
+	G4cout << " " << aStep->GetPostStepPoint()->GetTouchableHandle()->GetVolume(1)->GetName();
+	G4cout << " " << aStep->GetPostStepPoint()->GetTouchableHandle()->GetReplicaNumber(1);
+	G4cout << " " << aux.second;
+      }else{
+	man->FillNtupleIColumn(1,11,aux.second);
+	man->FillNtupleIColumn(1,12,0);
+	G4cout << " " << "OutOfWorld";
+	G4cout << " " << aux.second;
+        G4cout << " " << 0;
+       
+      }
+    }else{
+      std::pair<int,int> aux = VolumeCode("OutOfWorld");
+      G4cout << ", vol: OutOfWorld";
+      G4cout << " " << aux.first;
+      G4cout << " " << 0;
+      G4cout << " " << "OutOfWorld";
+      G4cout << " " << aux.second;
+      G4cout << " " << 0;
+      man->FillNtupleIColumn(1,9,aux.first);
+      man->FillNtupleIColumn(1,10,0);
+      man->FillNtupleIColumn(1,11,aux.second);
+      man->FillNtupleIColumn(1,12,0);
+    }     
+    
+    if(aStep->GetPostStepPoint()->GetProcessDefinedStep()!=NULL){
+      std::string name = aStep->GetPostStepPoint()->GetProcessDefinedStep()->GetProcessName();
+      G4cout << ", proccess: " << name << G4endl;
+      p = imap.find(name);
+      if(p!=imap.end()){
+	//###G4cout << "repeated" <<" "<< p->first <<" "<< p->second << G4endl;
+	man->FillNtupleIColumn(1,13,p->second);
+      }
+      if(p==imap.end()){
+	idx++;
+	std::pair<std::string, int> aux(name,idx);
+	imap.insert(aux);
+	man->FillNtupleIColumn(1,13,idx);
+      }
+
+      if(eveti!=fRun->GetNumEvent()){
+	eveti=fRun->GetNumEvent();
+	for(p=imap.begin(); p!=imap.end(); p++){
+	  G4cout << p->first << " " << p->second << G4endl;
+	}
+	G4cout << "n: " << idx << G4endl;
+      }
+      
+    }else{
+      G4cout << ", proccess: User Limit" << G4endl;
+      man->FillNtupleIColumn(1,13,-1);
+    }
+    man->AddNtupleRow(1);
+
+}
+
+std::pair<int,int> SteppingAction::VolumeCode(std::string name){
+
+  if(name=="OutOfWorld"){std::pair<int,int> aux(-1,-1); return aux;}
+  if(name=="World"){std::pair<int,int> aux(0,-1); return aux;}
+  if(name=="Shell"){std::pair<int,int> aux(1,0); return aux;}
+  if(name=="Cathode"){std::pair<int,int> aux(2,0); return aux;}
+  if(name=="Anode"){std::pair<int,int> aux(3,0); return aux;}
+  if(name=="FieldCage"){std::pair<int,int> aux(4,0); return aux;}
+  if(name=="ArapucaWindowLat11"){std::pair<int,int> aux(5,0); return aux;}
+  if(name=="ArapucaWindowLat12"){std::pair<int,int> aux(6,0); return aux;}
+  if(name=="ArapucaWindowLat13"){std::pair<int,int> aux(7,0); return aux;}
+  if(name=="ArapucaWindowLat14"){std::pair<int,int> aux(8,0); return aux;}
+  if(name=="ArapucaWindowLat15"){std::pair<int,int> aux(9,0); return aux;}
+  if(name=="ArapucaWindowLat16"){std::pair<int,int> aux(10,0); return aux;}
+  if(name=="ArapucaWindowLat17"){std::pair<int,int> aux(11,0); return aux;}
+  if(name=="ArapucaWindowLat18"){std::pair<int,int> aux(12,0); return aux;}
+  if(name=="ArapucaWindowLat19"){std::pair<int,int> aux(13,0); return aux;}
+  if(name=="ArapucaWindowLat110"){std::pair<int,int> aux(14,0); return aux;}
+  if(name=="ArapucaWindowLat111"){std::pair<int,int> aux(15,0); return aux;}
+  if(name=="ArapucaWindowLat112"){std::pair<int,int> aux(16,0); return aux;}
+  if(name=="ArapucaWindowLat21"){std::pair<int,int> aux(17,0); return aux;}
+  if(name=="ArapucaWindowLat22"){std::pair<int,int> aux(18,0); return aux;}
+  if(name=="ArapucaWindowLat23"){std::pair<int,int> aux(19,0); return aux;}
+  if(name=="ArapucaWindowLat24"){std::pair<int,int> aux(20,0); return aux;}
+  if(name=="ArapucaWindowLat25"){std::pair<int,int> aux(21,0); return aux;}
+  if(name=="ArapucaWindowLat26"){std::pair<int,int> aux(22,0); return aux;}
+  if(name=="ArapucaWindowLat27"){std::pair<int,int> aux(23,0); return aux;}
+  if(name=="ArapucaWindowLat28"){std::pair<int,int> aux(24,0); return aux;}
+  if(name=="ArapucaWindowLat29"){std::pair<int,int> aux(25,0); return aux;}
+  if(name=="ArapucaWindowLat210"){std::pair<int,int> aux(26,0); return aux;}
+  if(name=="ArapucaWindowLat211"){std::pair<int,int> aux(27,0); return aux;}
+  if(name=="ArapucaWindowLat212"){std::pair<int,int> aux(28,0); return aux;}
+  if(name=="ArapucaWindowLat31"){std::pair<int,int> aux(29,0); return aux;}
+  if(name=="ArapucaWindowLat32"){std::pair<int,int> aux(30,0); return aux;}
+  if(name=="ArapucaWindowLat33"){std::pair<int,int> aux(31,0); return aux;}
+  if(name=="ArapucaWindowLat34"){std::pair<int,int> aux(32,0); return aux;}
+  if(name=="ArapucaWindowLat35"){std::pair<int,int> aux(33,0); return aux;}
+  if(name=="ArapucaWindowLat36"){std::pair<int,int> aux(34,0); return aux;}
+  if(name=="ArapucaWindowLat37"){std::pair<int,int> aux(35,0); return aux;}
+  if(name=="ArapucaWindowLat38"){std::pair<int,int> aux(36,0); return aux;}
+  if(name=="ArapucaWindowLat39"){std::pair<int,int> aux(37,0); return aux;}
+  if(name=="ArapucaWindowLat310"){std::pair<int,int> aux(38,0); return aux;}
+  if(name=="ArapucaWindowLat311"){std::pair<int,int> aux(39,0); return aux;}
+  if(name=="ArapucaWindowLat312"){std::pair<int,int> aux(40,0); return aux;}
+  if(name=="ArapucaWindowLat41"){std::pair<int,int> aux(41,0); return aux;}
+  if(name=="ArapucaWindowLat42"){std::pair<int,int> aux(42,0); return aux;}
+  if(name=="ArapucaWindowLat43"){std::pair<int,int> aux(43,0); return aux;}
+  if(name=="ArapucaWindowLat44"){std::pair<int,int> aux(44,0); return aux;}
+  if(name=="ArapucaWindowLat45"){std::pair<int,int> aux(45,0); return aux;}
+  if(name=="ArapucaWindowLat46"){std::pair<int,int> aux(46,0); return aux;}
+  if(name=="ArapucaWindowLat47"){std::pair<int,int> aux(47,0); return aux;}
+  if(name=="ArapucaWindowLat48"){std::pair<int,int> aux(48,0); return aux;}
+  if(name=="ArapucaWindowLat49"){std::pair<int,int> aux(49,0); return aux;}
+  if(name=="ArapucaWindowLat410"){std::pair<int,int> aux(50,0); return aux;}
+  if(name=="ArapucaWindowLat411"){std::pair<int,int> aux(51,0); return aux;}
+  if(name=="ArapucaWindowLat412"){std::pair<int,int> aux(52,0); return aux;}
+  if(name=="ArapucaWindowLat51"){std::pair<int,int> aux(53,0); return aux;}
+  if(name=="ArapucaWindowLat52"){std::pair<int,int> aux(54,0); return aux;}
+  if(name=="ArapucaWindowLat53"){std::pair<int,int> aux(55,0); return aux;}
+  if(name=="ArapucaWindowLat54"){std::pair<int,int> aux(56,0); return aux;}
+  if(name=="ArapucaWindowLat55"){std::pair<int,int> aux(57,0); return aux;}
+  if(name=="ArapucaWindowLat56"){std::pair<int,int> aux(58,0); return aux;}
+  if(name=="ArapucaWindowLat57"){std::pair<int,int> aux(59,0); return aux;}
+  if(name=="ArapucaWindowLat58"){std::pair<int,int> aux(60,0); return aux;}
+  if(name=="ArapucaWindowLat59"){std::pair<int,int> aux(61,0); return aux;}
+  if(name=="ArapucaWindowLat510"){std::pair<int,int> aux(62,0); return aux;}
+  if(name=="ArapucaWindowLat511"){std::pair<int,int> aux(63,0); return aux;}
+  if(name=="ArapucaWindowLat512"){std::pair<int,int> aux(64,0); return aux;}
+  if(name=="ArapucaWindowLat61"){std::pair<int,int> aux(65,0); return aux;}
+  if(name=="ArapucaWindowLat62"){std::pair<int,int> aux(66,0); return aux;}
+  if(name=="ArapucaWindowLat63"){std::pair<int,int> aux(67,0); return aux;}
+  if(name=="ArapucaWindowLat64"){std::pair<int,int> aux(68,0); return aux;}
+  if(name=="ArapucaWindowLat65"){std::pair<int,int> aux(69,0); return aux;}
+  if(name=="ArapucaWindowLat66"){std::pair<int,int> aux(70,0); return aux;}
+  if(name=="ArapucaWindowLat67"){std::pair<int,int> aux(71,0); return aux;}
+  if(name=="ArapucaWindowLat68"){std::pair<int,int> aux(72,0); return aux;}
+  if(name=="ArapucaWindowLat69"){std::pair<int,int> aux(73,0); return aux;}
+  if(name=="ArapucaWindowLat610"){std::pair<int,int> aux(74,0); return aux;}
+  if(name=="ArapucaWindowLat611"){std::pair<int,int> aux(75,0); return aux;}
+  if(name=="ArapucaWindowLat612"){std::pair<int,int> aux(76,0); return aux;}
+  if(name=="ArapucaWindowLat71"){std::pair<int,int> aux(77,0); return aux;}
+  if(name=="ArapucaWindowLat72"){std::pair<int,int> aux(78,0); return aux;}
+  if(name=="ArapucaWindowLat73"){std::pair<int,int> aux(79,0); return aux;}
+  if(name=="ArapucaWindowLat74"){std::pair<int,int> aux(80,0); return aux;}
+  if(name=="ArapucaWindowLat75"){std::pair<int,int> aux(81,0); return aux;}
+  if(name=="ArapucaWindowLat76"){std::pair<int,int> aux(82,0); return aux;}
+  if(name=="ArapucaWindowLat77"){std::pair<int,int> aux(83,0); return aux;}
+  if(name=="ArapucaWindowLat78"){std::pair<int,int> aux(84,0); return aux;}
+  if(name=="ArapucaWindowLat79"){std::pair<int,int> aux(85,0); return aux;}
+  if(name=="ArapucaWindowLat710"){std::pair<int,int> aux(86,0); return aux;}
+  if(name=="ArapucaWindowLat711"){std::pair<int,int> aux(87,0); return aux;}
+  if(name=="ArapucaWindowLat712"){std::pair<int,int> aux(88,0); return aux;}
+  if(name=="ArapucaWindowLat81"){std::pair<int,int> aux(89,0); return aux;}
+  if(name=="ArapucaWindowLat82"){std::pair<int,int> aux(90,0); return aux;}
+  if(name=="ArapucaWindowLat83"){std::pair<int,int> aux(91,0); return aux;}
+  if(name=="ArapucaWindowLat84"){std::pair<int,int> aux(92,0); return aux;}
+  if(name=="ArapucaWindowLat85"){std::pair<int,int> aux(93,0); return aux;}
+  if(name=="ArapucaWindowLat86"){std::pair<int,int> aux(94,0); return aux;}
+  if(name=="ArapucaWindowLat87"){std::pair<int,int> aux(95,0); return aux;}
+  if(name=="ArapucaWindowLat88"){std::pair<int,int> aux(96,0); return aux;}
+  if(name=="ArapucaWindowLat89"){std::pair<int,int> aux(97,0); return aux;}
+  if(name=="ArapucaWindowLat810"){std::pair<int,int> aux(98,0); return aux;}
+  if(name=="ArapucaWindowLat811"){std::pair<int,int> aux(99,0); return aux;}
+  if(name=="ArapucaWindowLat812"){std::pair<int,int> aux(100,0); return aux;}
+  if(name=="ArapucaWindowLat91"){std::pair<int,int> aux(101,0); return aux;}
+  if(name=="ArapucaWindowLat92"){std::pair<int,int> aux(102,0); return aux;}
+  if(name=="ArapucaWindowLat93"){std::pair<int,int> aux(103,0); return aux;}
+  if(name=="ArapucaWindowLat94"){std::pair<int,int> aux(104,0); return aux;}
+  if(name=="ArapucaWindowLat95"){std::pair<int,int> aux(105,0); return aux;}
+  if(name=="ArapucaWindowLat96"){std::pair<int,int> aux(106,0); return aux;}
+  if(name=="ArapucaWindowLat97"){std::pair<int,int> aux(107,0); return aux;}
+  if(name=="ArapucaWindowLat98"){std::pair<int,int> aux(108,0); return aux;}
+  if(name=="ArapucaWindowLat99"){std::pair<int,int> aux(109,0); return aux;}
+  if(name=="ArapucaWindowLat910"){std::pair<int,int> aux(110,0); return aux;}
+  if(name=="ArapucaWindowLat911"){std::pair<int,int> aux(111,0); return aux;}
+  if(name=="ArapucaWindowLat912"){std::pair<int,int> aux(112,0); return aux;}
+  if(name=="ArapucaWindowLlat11"){std::pair<int,int> aux(113,0); return aux;}
+  if(name=="ArapucaWindowLlat12"){std::pair<int,int> aux(114,0); return aux;}
+  if(name=="ArapucaWindowLlat13"){std::pair<int,int> aux(115,0); return aux;}
+  if(name=="ArapucaWindowLlat14"){std::pair<int,int> aux(116,0); return aux;}
+  if(name=="ArapucaWindowLlat15"){std::pair<int,int> aux(117,0); return aux;}
+  if(name=="ArapucaWindowLlat16"){std::pair<int,int> aux(118,0); return aux;}
+  if(name=="ArapucaWindowLlat17"){std::pair<int,int> aux(119,0); return aux;}
+  if(name=="ArapucaWindowLlat18"){std::pair<int,int> aux(120,0); return aux;}
+  if(name=="ArapucaWindowLlat19"){std::pair<int,int> aux(121,0); return aux;}
+  if(name=="ArapucaWindowLlat110"){std::pair<int,int> aux(122,0); return aux;}
+  if(name=="ArapucaWindowLlat111"){std::pair<int,int> aux(123,0); return aux;}
+  if(name=="ArapucaWindowLlat112"){std::pair<int,int> aux(124,0); return aux;}
+  if(name=="ArapucaWindowLlat21"){std::pair<int,int> aux(125,0); return aux;}
+  if(name=="ArapucaWindowLlat22"){std::pair<int,int> aux(126,0); return aux;}
+  if(name=="ArapucaWindowLlat23"){std::pair<int,int> aux(127,0); return aux;}
+  if(name=="ArapucaWindowLlat24"){std::pair<int,int> aux(128,0); return aux;}
+  if(name=="ArapucaWindowLlat25"){std::pair<int,int> aux(129,0); return aux;}
+  if(name=="ArapucaWindowLlat26"){std::pair<int,int> aux(130,0); return aux;}
+  if(name=="ArapucaWindowLlat27"){std::pair<int,int> aux(131,0); return aux;}
+  if(name=="ArapucaWindowLlat28"){std::pair<int,int> aux(132,0); return aux;}
+  if(name=="ArapucaWindowLlat29"){std::pair<int,int> aux(133,0); return aux;}
+  if(name=="ArapucaWindowLlat210"){std::pair<int,int> aux(134,0); return aux;}
+  if(name=="ArapucaWindowLlat211"){std::pair<int,int> aux(135,0); return aux;}
+  if(name=="ArapucaWindowLlat212"){std::pair<int,int> aux(136,0); return aux;}
+  if(name=="ArapucaWindowLlat31"){std::pair<int,int> aux(137,0); return aux;}
+  if(name=="ArapucaWindowLlat32"){std::pair<int,int> aux(138,0); return aux;}
+  if(name=="ArapucaWindowLlat33"){std::pair<int,int> aux(139,0); return aux;}
+  if(name=="ArapucaWindowLlat34"){std::pair<int,int> aux(140,0); return aux;}
+  if(name=="ArapucaWindowLlat35"){std::pair<int,int> aux(141,0); return aux;}
+  if(name=="ArapucaWindowLlat36"){std::pair<int,int> aux(142,0); return aux;}
+  if(name=="ArapucaWindowLlat37"){std::pair<int,int> aux(143,0); return aux;}
+  if(name=="ArapucaWindowLlat38"){std::pair<int,int> aux(144,0); return aux;}
+  if(name=="ArapucaWindowLlat39"){std::pair<int,int> aux(145,0); return aux;}
+  if(name=="ArapucaWindowLlat310"){std::pair<int,int> aux(146,0); return aux;}
+  if(name=="ArapucaWindowLlat311"){std::pair<int,int> aux(147,0); return aux;}
+  if(name=="ArapucaWindowLlat312"){std::pair<int,int> aux(148,0); return aux;}
+  if(name=="ArapucaWindowLlat41"){std::pair<int,int> aux(149,0); return aux;}
+  if(name=="ArapucaWindowLlat42"){std::pair<int,int> aux(150,0); return aux;}
+  if(name=="ArapucaWindowLlat43"){std::pair<int,int> aux(151,0); return aux;}
+  if(name=="ArapucaWindowLlat44"){std::pair<int,int> aux(152,0); return aux;}
+  if(name=="ArapucaWindowLlat45"){std::pair<int,int> aux(153,0); return aux;}
+  if(name=="ArapucaWindowLlat46"){std::pair<int,int> aux(154,0); return aux;}
+  if(name=="ArapucaWindowLlat47"){std::pair<int,int> aux(155,0); return aux;}
+  if(name=="ArapucaWindowLlat48"){std::pair<int,int> aux(156,0); return aux;}
+  if(name=="ArapucaWindowLlat49"){std::pair<int,int> aux(157,0); return aux;}
+  if(name=="ArapucaWindowLlat410"){std::pair<int,int> aux(158,0); return aux;}
+  if(name=="ArapucaWindowLlat411"){std::pair<int,int> aux(159,0); return aux;}
+  if(name=="ArapucaWindowLlat412"){std::pair<int,int> aux(160,0); return aux;}
+  if(name=="ArapucaWindowLlat51"){std::pair<int,int> aux(161,0); return aux;}
+  if(name=="ArapucaWindowLlat52"){std::pair<int,int> aux(162,0); return aux;}
+  if(name=="ArapucaWindowLlat53"){std::pair<int,int> aux(163,0); return aux;}
+  if(name=="ArapucaWindowLlat54"){std::pair<int,int> aux(164,0); return aux;}
+  if(name=="ArapucaWindowLlat55"){std::pair<int,int> aux(165,0); return aux;}
+  if(name=="ArapucaWindowLlat56"){std::pair<int,int> aux(166,0); return aux;}
+  if(name=="ArapucaWindowLlat57"){std::pair<int,int> aux(167,0); return aux;}
+  if(name=="ArapucaWindowLlat58"){std::pair<int,int> aux(168,0); return aux;}
+  if(name=="ArapucaWindowLlat59"){std::pair<int,int> aux(169,0); return aux;}
+  if(name=="ArapucaWindowLlat510"){std::pair<int,int> aux(170,0); return aux;}
+  if(name=="ArapucaWindowLlat511"){std::pair<int,int> aux(171,0); return aux;}
+  if(name=="ArapucaWindowLlat512"){std::pair<int,int> aux(172,0); return aux;}
+  if(name=="ArapucaWindowLlat61"){std::pair<int,int> aux(173,0); return aux;}
+  if(name=="ArapucaWindowLlat62"){std::pair<int,int> aux(174,0); return aux;}
+  if(name=="ArapucaWindowLlat63"){std::pair<int,int> aux(175,0); return aux;}
+  if(name=="ArapucaWindowLlat64"){std::pair<int,int> aux(176,0); return aux;}
+  if(name=="ArapucaWindowLlat65"){std::pair<int,int> aux(177,0); return aux;}
+  if(name=="ArapucaWindowLlat66"){std::pair<int,int> aux(178,0); return aux;}
+  if(name=="ArapucaWindowLlat67"){std::pair<int,int> aux(179,0); return aux;}
+  if(name=="ArapucaWindowLlat68"){std::pair<int,int> aux(180,0); return aux;}
+  if(name=="ArapucaWindowLlat69"){std::pair<int,int> aux(181,0); return aux;}
+  if(name=="ArapucaWindowLlat610"){std::pair<int,int> aux(182,0); return aux;}
+  if(name=="ArapucaWindowLlat611"){std::pair<int,int> aux(183,0); return aux;}
+  if(name=="ArapucaWindowLlat612"){std::pair<int,int> aux(184,0); return aux;}
+  if(name=="ArapucaWindowLlat71"){std::pair<int,int> aux(185,0); return aux;}
+  if(name=="ArapucaWindowLlat72"){std::pair<int,int> aux(186,0); return aux;}
+  if(name=="ArapucaWindowLlat73"){std::pair<int,int> aux(187,0); return aux;}
+  if(name=="ArapucaWindowLlat74"){std::pair<int,int> aux(188,0); return aux;}
+  if(name=="ArapucaWindowLlat75"){std::pair<int,int> aux(189,0); return aux;}
+  if(name=="ArapucaWindowLlat76"){std::pair<int,int> aux(190,0); return aux;}
+  if(name=="ArapucaWindowLlat77"){std::pair<int,int> aux(191,0); return aux;}
+  if(name=="ArapucaWindowLlat78"){std::pair<int,int> aux(192,0); return aux;}
+  if(name=="ArapucaWindowLlat79"){std::pair<int,int> aux(193,0); return aux;}
+  if(name=="ArapucaWindowLlat710"){std::pair<int,int> aux(194,0); return aux;}
+  if(name=="ArapucaWindowLlat711"){std::pair<int,int> aux(195,0); return aux;}
+  if(name=="ArapucaWindowLlat712"){std::pair<int,int> aux(196,0); return aux;}
+  if(name=="ArapucaWindowLlat81"){std::pair<int,int> aux(197,0); return aux;}
+  if(name=="ArapucaWindowLlat82"){std::pair<int,int> aux(198,0); return aux;}
+  if(name=="ArapucaWindowLlat83"){std::pair<int,int> aux(199,0); return aux;}
+  if(name=="ArapucaWindowLlat84"){std::pair<int,int> aux(200,0); return aux;}
+  if(name=="ArapucaWindowLlat85"){std::pair<int,int> aux(201,0); return aux;}
+  if(name=="ArapucaWindowLlat86"){std::pair<int,int> aux(202,0); return aux;}
+  if(name=="ArapucaWindowLlat87"){std::pair<int,int> aux(203,0); return aux;}
+  if(name=="ArapucaWindowLlat88"){std::pair<int,int> aux(204,0); return aux;}
+  if(name=="ArapucaWindowLlat89"){std::pair<int,int> aux(205,0); return aux;}
+  if(name=="ArapucaWindowLlat810"){std::pair<int,int> aux(206,0); return aux;}
+  if(name=="ArapucaWindowLlat811"){std::pair<int,int> aux(207,0); return aux;}
+  if(name=="ArapucaWindowLlat812"){std::pair<int,int> aux(208,0); return aux;}
+  if(name=="ArapucaWindowLlat91"){std::pair<int,int> aux(209,0); return aux;}
+  if(name=="ArapucaWindowLlat92"){std::pair<int,int> aux(210,0); return aux;}
+  if(name=="ArapucaWindowLlat93"){std::pair<int,int> aux(211,0); return aux;}
+  if(name=="ArapucaWindowLlat94"){std::pair<int,int> aux(212,0); return aux;}
+  if(name=="ArapucaWindowLlat95"){std::pair<int,int> aux(213,0); return aux;}
+  if(name=="ArapucaWindowLlat96"){std::pair<int,int> aux(214,0); return aux;}
+  if(name=="ArapucaWindowLlat97"){std::pair<int,int> aux(215,0); return aux;}
+  if(name=="ArapucaWindowLlat98"){std::pair<int,int> aux(216,0); return aux;}
+  if(name=="ArapucaWindowLlat99"){std::pair<int,int> aux(217,0); return aux;}
+  if(name=="ArapucaWindowLlat910"){std::pair<int,int> aux(218,0); return aux;}
+  if(name=="ArapucaWindowLlat911"){std::pair<int,int> aux(219,0); return aux;}
+  if(name=="ArapucaWindowLlat912"){std::pair<int,int> aux(220,0); return aux;}
+
+  else{
+  std::pair<int, int> aux(-3,-4);
+  return aux;
+  }
+}
+

@@ -1,0 +1,1463 @@
+// Light simulation in Iceberg
+// Authors: L. Paulucci & F. Marinho
+// Date: 28th September 2020
+//
+// Added modifications should be reported in arapuca.cc header comments
+
+#include "DetectorConstruction.hh"
+#include "G4PhysicalConstants.hh"
+#include "G4SystemOfUnits.hh"
+#include "G4Tubs.hh"
+#include "G4EllipticalTube.hh"
+#include "G4Orb.hh"
+#include "G4Sphere.hh"
+#include "G4NistManager.hh"
+
+#include "G4Color.hh"
+#include "G4VisAttributes.hh"
+
+DetectorConstruction::DetectorConstruction()
+  
+  :fDefaultMaterial(NULL),
+   fPhysiWorld(NULL),fLogicWorld(NULL),fSolidWorld(NULL),
+   fPhysiVol(NULL),fLogicVol(NULL),fSolidVol(NULL)
+  
+{
+  fWorldSizeX=15.0; //in meters
+  fWorldSizeY=10.0; //in meters
+  fWorldSizeZ=65.0;
+  
+  fCryostat_x = 13.5; //in meters
+  fCryostat_y = 6.75; //in meters
+  fCryostat_z = 60.0; //in meters
+
+  fCathode_x = 13.5; //Cathode size in m
+  fCathode_z = 60.0; //Cathode size in m
+
+  fLatY = 6.75; //APA internal size in cm
+  fLatZ = 60.0;
+
+  fthickness=0.10; //m
+
+  fwindow = 0.6; //Arapuca window size in m
+}
+  
+DetectorConstruction::DetectorConstruction(double size)
+  
+  :fDefaultMaterial(NULL),
+   fPhysiWorld(NULL),fLogicWorld(NULL),fSolidWorld(NULL),
+   fPhysiVol(NULL),fLogicVol(NULL),fSolidVol(NULL)
+  
+{
+  //  fWorldSizeX=Y=fWorldSizeZ=0;
+  //  fsize = size;
+  
+}  
+
+DetectorConstruction::~DetectorConstruction()
+{
+  delete fDefaultMaterial;
+
+}
+
+G4VPhysicalVolume* DetectorConstruction::Construct()
+  
+{
+  DefineMaterials();
+  return ConstructLine();
+}
+
+void DetectorConstruction::DefineMaterials()
+{  
+
+  G4String name, symbol;             
+  G4double density;            
+  
+  G4int natoms,nel;
+  G4double z;
+  
+  // Define Elements   
+  G4Element*   H  = new G4Element ("Hydrogen","H",1.,1.01*g/mole);
+  G4Element*   C = new G4Element ("Carbon","C",6.,12.01*g/mole);
+  G4Element*   O = new G4Element ("Oxygen","O",8.,16.0*g/mole);
+  G4Element*  Al = new G4Element(name="Aluminium",symbol="Al",z=13.,26.98*g/mole);
+  G4Element*  Fe = new G4Element(name="Iron",symbol="Fe",z=26.,55.85*g/mole);
+  G4Element*  Ni = new G4Element(name="Niquel",symbol="Ni",z=28.,58.6934*g/mole);
+  G4Element*  Si = new G4Element(name="Silicon",symbol="Si",z=14.,28.085*g/mole);
+  G4Element*  Cr = new G4Element(name="Chromium",symbol="Cr",z=24.,51.9961*g/mole);
+  G4NistManager * man = G4NistManager::Instance();
+
+  G4Material* StainlessSteel = new G4Material(name="StainlessSteel",7.93*g/cm3,nel=4);//STEEL_STAINLESS_Fe7Cr2Ni
+  StainlessSteel->AddElement(C, 0.0010);
+  StainlessSteel->AddElement(Cr, 0.1792);
+  StainlessSteel->AddElement(Fe, 0.7298);
+  StainlessSteel->AddElement(Ni, 0.0900);
+
+  G4Material* G10 = new G4Material(name="G10",1.7*g/cm3,nel=4);
+  G10->AddElement(Si, 0.2805);
+  G10->AddElement(O, 0.3954);
+  G10->AddElement(C, 0.2990);
+  G10->AddElement(H, 0.0251);
+
+  G4Material* Aluminium = new G4Material(name="Aluminium",z=13.,26.98*g/mole,2.7*g/cm3);
+  G4Material* base_mat = man->FindOrBuildMaterial("G4_TEFLON");
+  G4Material* env_mat = man->FindOrBuildMaterial("G4_lAr");
+
+  const G4int nEntries = 6;
+  G4double PhotonEnergy[nEntries] =
+    { 2.0*eV, 2.341*eV, 2.757*eV, 3.353*eV, 4.136*eV, 10.0*eV };
+
+  G4double l_lAr[nEntries] =
+    {20*m,  20*m,  20*m,  20*m, 20*m, 20*m }; 
+
+  //  G4double n_lAr[nEntries] = {1.3,1.3,1.3,1.3,1.3};
+  G4double n_lAr[72] = {1.2310665394518083, 1.2311200318147684, 1.2312727482978456, 1.2313496348295065, 1.2313506914097514, 1.2314023012909403, 1.2321538166889967, 1.231909947460871, 1.2321384938953646, 1.2323923169803301, 1.232443926861519, 1.2328668458034384, 1.233095392237932, 1.233053736213583, 1.233509772502325, 1.2335361057330418, 1.2334866090123424, 1.2338668153496684, 1.2343481282888824, 1.2344502914710154, 1.2346282846045646, 1.2350337675923626, 1.2354898038811046, 1.2358874461725522, 1.2361238333033957, 1.2364787629902494, 1.2371038951359457, 1.2374666655191495, 1.237720488604115, 1.2384292913975776, 1.2388853276863196, 1.2393413639750617, 1.2402271033218288, 1.2409106294648191, 1.2417458155106422, 1.2425810015564651, 1.2435678475051206, 1.2446558000556642, 1.245844859208096, 1.2472614082147766, 1.2488296171242892, 1.2505242092861624, 1.2525221212537003, 1.2548739063278473, 1.257579564508603, 1.2607654790483278, 1.2644822032479663, 1.269108886864599, 1.2747719131505861, 1.2816987719601767, 1.2910690403154002, 1.302368759656658, 1.316713517166515, 1.3329411664124329, 1.3493804523854165, 1.365926455672306, 1.3820018039345536, 1.4010549636291998, 1.423580491960391, 1.442600693158671, 1.46103487273757, 1.4894895758980782, 1.508978836972031, 1.5300372520419365, 1.5496431051408859, 1.5737334642006038, 1.5996151986767673, 1.6187496758472137, 1.6361783106957755, 1.6540241603412935, 1.672490509546729, 1.69156768392026};
+
+  G4double Energy_n_lar[72] = {1.88901692613609*eV, 1.915491549763*eV, 1.94434453495496*eV, 1.9740800365654*eV, 2.00473917327901*eV, 2.03636565851099*eV, 2.0690060083582*eV, 2.1027097698752*eV, 2.1375297720313*eV, 2.17352240202191*eV, 2.21074790997382*eV, 2.24927074550798*eV, 2.28915993011439*eV, 2.33048946986518*eV, 2.37333881365753*eV, 2.41779336295621*eV, 2.46394503991691*eV, 2.51189292184303*eV, 2.56174395119099*eV, 2.61361373183203*eV, 2.66762742404865*eV, 2.72392075285046*eV, 2.78264114670945*eV, 2.84394902682875*eV, 2.90801927068415*eV, 2.97504287795441*eV, 3.04522887226339*eV, 3.11880647861692*eV, 3.19602762431763*eV, 3.27716982084588*eV, 3.36253949617556*eV, 3.45247586185779*eV, 3.54735541774646*eV, 3.64759722049586*eV, 3.75366907130329*eV, 3.86609481562225*eV, 3.98546299517591*eV, 4.11243715385428*eV, 4.24776817847434*eV, 4.39230915909235*eV, 4.54703339014745*eV, 4.71305631519082*eV, 4.89166246132417*eV, 5.08433873911506*eV, 5.29281593505014*eV, 5.51912084854449*eV, 5.76564240171605*eV, 6.03521629502331*eV, 6.33123457629323*eV, 6.65778911807759*eV, 7.01986191167459*eV, 7.42358102512033*eV, 7.80768693883725*eV, 8.18166617653237*eV, 8.49578904787588*eV, 8.75179837892604*eV, 8.97145190403002*eV, 9.21112941189563*eV, 9.40734062594689*eV, 9.56190983757659*eV, 9.71915769371575*eV, 9.88023992289941*eV, 9.99798584772925*eV, 10.0930619775564*eV, 10.1644798618311*eV, 10.2587258039568*eV, 10.3321720936895*eV, 10.3923239488175*eV, 10.4560982471211*eV, 10.4827908882082*eV, 10.5288181909777*eV, 10.5783779318939*eV};
+
+  //G4double ray_e_lAr[22] = {2.80*eV, 3.00*eV, 3.50*eV, 4.00*eV, 5.00*eV, 6.00*eV, 7.00*eV, 8.00*eV, 8.50*eV, 9.00*eV, 9.20*eV, 9.40*eV, 9.50*eV, 9.60*eV, 9.70*eV, 9.80*eV, 9.90*eV, 10.0*eV, 10.2*eV, 10.4*eV, 10.6*eV, 10.8*eV};
+  
+  ////G4double ray_s_lAr[22] = {70636.6*cm, 53034.6*cm, 27747.3*cm, 15702.1*cm, 5854.57*cm, 2477.73*cm, 1106.8*cm, 493.334*cm, 319.555*cm, 198.985*cm, 161.693*cm, 129.797*cm, 115.441*cm, 102.204*cm, 90*cm, 78.7979*cm, 68.5391*cm, 59.15*cm, 42.6122*cm, 29.1991*cm, 18.5866*cm, 10.6125*cm};
+
+  //G4double ray_s_lAr[22] = { 700*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm, 700.0*cm };
+
+  G4double ray_e_lAr[21] = { 1.18626*eV, 1.68626*eV, 2.18626*eV, 2.68626*eV, 3.18626*eV, 3.68626*eV, 4.18626*eV, 4.68626*eV, 5.18626*eV, 5.68626*eV, 6.18626*eV, 6.68626*eV, 7.18626*eV, 7.68626*eV, 8.18626*eV, 8.68626*eV, 9.18626*eV, 9.68626*eV, 10.1863*eV, 10.6863*eV, 11.1863*eV};
+  G4double ray_s_lAr[21] = { 1200800*cm, 390747*cm, 128633*cm, 54969.1*cm, 27191.8*cm, 14853.7*cm, 8716.9*cm, 5397.42*cm, 3481.37*cm, 2316.51*cm, 1577.63*cm, 1092.02*cm, 763.045*cm, 534.232*cm, 371.335*cm, 252.942*cm, 165.38*cm, 99.9003*cm, 51.2653*cm, 17.495*cm, 0.964341*cm };
+
+  G4MaterialPropertiesTable* lAr_pt = new G4MaterialPropertiesTable();
+  lAr_pt->AddProperty("RINDEX", Energy_n_lar, n_lAr, 72);
+  lAr_pt->AddProperty("RAYLEIGH", ray_e_lAr, ray_s_lAr, 21);
+  lAr_pt->AddProperty("ABSLENGTH", PhotonEnergy, l_lAr, nEntries);
+
+  env_mat->SetMaterialPropertiesTable(lAr_pt);
+  
+  const G4int num = 3;
+  G4double n_teflon[num] = {1.41, 1.41, 1.41};
+  G4double l_teflon[num] = {3448*m,  4082*m, 9174*m};
+  G4double pp[num] = {1.9587*eV, 2.5407*eV, 4.1328*eV};
+
+  G4MaterialPropertiesTable*  Teflon_pt = new G4MaterialPropertiesTable();
+  Teflon_pt->AddProperty("RINDEX", pp, n_teflon, num);
+  Teflon_pt->AddProperty("ABSLENGTH", pp, l_teflon, num);
+  
+  base_mat->SetMaterialPropertiesTable(Teflon_pt);
+
+  G4Material* acrylic = new G4Material("acrylic", 1.18*g/cm3,3); //acrylic
+  acrylic->AddElement (C, 5);
+  acrylic->AddElement (O, 2);
+  acrylic->AddElement (H, 8);
+
+  fDefaultMaterial = env_mat;
+  fBase = base_mat; 
+  facrylic = acrylic;
+  fSteel = StainlessSteel;
+  fAluminium = Aluminium;
+  fG10 = G10;
+  // DISPLAY MATERIALS
+  G4cout << G4endl << *(G4Material::GetMaterialTable()) << G4endl;
+
+}
+
+G4VPhysicalVolume* DetectorConstruction::ConstructLine()
+{
+  // WORLD
+  //  fWorldSizeXY  = 2*m;
+  //  fWorldSizeZ   = 2*m;
+     
+  //*************
+  // WORLD VOLUME
+  //*************
+  
+  fSolidWorld = new G4Box("World",			         //its name
+		  fWorldSizeX/2*m,fWorldSizeY/2*m,fWorldSizeZ/2*m);  //its size
+  
+  
+  fLogicWorld = new G4LogicalVolume(fSolidWorld,	//its solid
+				    fDefaultMaterial,	//its material
+				    "World");		//its name
+  
+  fPhysiWorld = new G4PVPlacement(0,			//no rotation
+  				 G4ThreeVector(),	//at (0,0,0)
+                                 "World",		//its name
+                                 fLogicWorld,		//its logical volume
+                                 NULL,			//its mother  volume
+                                 false,			//no boolean operation
+                                 0);			//copy number
+
+  G4Box* fSolidCryostat = new G4Box("Cryostat",(fCryostat_x/2+0.1)*m, (fCryostat_y/2.0+0.1)*m,(fCryostat_z/2+0.1)*m); //make it a little bigger to avoid overlaps
+  G4LogicalVolume* fLogicCryostat = new G4LogicalVolume(fSolidCryostat,fDefaultMaterial,"Cryostat");
+  G4VPhysicalVolume* fPhysCryostat = new G4PVPlacement(0,G4ThreeVector(0,0,0),"Cryostat",
+                                 fLogicCryostat,     //its logical volume
+                                 fPhysiWorld,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+
+  G4Box* ShellOut = new G4Box("ShellOut",(fCryostat_x/2+0.3)*m, (fCryostat_y/2.0+0.3)*m,(fCryostat_z/2+0.3)*m);
+  G4SubtractionSolid* fShell = new G4SubtractionSolid("Shell", ShellOut, fSolidCryostat);
+  G4LogicalVolume* fLogicShell = new G4LogicalVolume(fShell,fSteel,"Sheel");
+  G4VPhysicalVolume* fPhysShell = new G4PVPlacement(0,G4ThreeVector(0,0,0),"Sheel",
+                                 fLogicShell,     //its logical volume
+                                 fPhysiWorld,    	//its mother  volume
+                                 false,			//no boolean operation
+                                 0);
+
+  G4Box* fSolidCathode = new G4Box("Cathode",(fCathode_x/2)*m,fthickness/2*m,(fCathode_z/2)*m);
+  G4LogicalVolume* fLogicCathode = new G4LogicalVolume(fSolidCathode,fSteel,"Cathode");
+  G4VPhysicalVolume* fPhysiCathode = new G4PVPlacement(0,G4ThreeVector(0,(-fCryostat_y/2.0-fthickness/2)*m,0),"Cathode",
+                                 fLogicCathode,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps                    
+  G4LogicalVolume* fLogicAnode = new G4LogicalVolume(fSolidCathode,fSteel,"Anode");
+  G4VPhysicalVolume* fPhysiAnode = new G4PVPlacement(0,G4ThreeVector(0,(fCryostat_y/2.0+fthickness/2)*m,0),"Anode",
+                                 fLogicAnode,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps     
+
+  G4Box* FCOut = new G4Box("FCOut",(fCryostat_x/2+fthickness)*m,(fCryostat_y/2)*m,(fCryostat_z/2+fthickness)*m);
+  G4Box* FCIn = new G4Box("FCIn",fCryostat_x/2*m,(fCryostat_y/2+0.3)*m,fCryostat_z/2*m); //safety buffer in y to get an open structure
+  G4SubtractionSolid* fSolidFC = new G4SubtractionSolid("FieldCage", FCOut, FCIn);
+  G4LogicalVolume* fLogicFC = new G4LogicalVolume(fSolidFC,fAluminium,"FieldCage");
+  G4VPhysicalVolume* fPhysFC = new G4PVPlacement(0,G4ThreeVector(0,0,0),"FieldCage",
+                                 fLogicFC,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+
+  //ARAPUCAs
+
+
+  G4Box* AraWindowLat = new G4Box("ArapucaWindow",fthickness/4*m,fwindow/2*m,fwindow/2*m);
+  G4LogicalVolume* fLogicAraWindowLat = new G4LogicalVolume(AraWindowLat,facrylic,"ArapucaWindow");
+G4VPhysicalVolume* fPhysAraWindowLat11 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowLat11",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat12 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowLat12",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat13 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowLat13",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat14 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowLat14",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat15 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowLat15",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat16 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowLat16",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat17 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowLat17",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat18 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowLat18",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+
+  G4VPhysicalVolume* fPhysAraWindowLat19 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowLat19",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat110 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowLat110",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat111 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowLat111",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat112 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowLat112",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat21 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowLat21",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat22 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowLat22",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat23 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowLat23",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat24 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowLat24",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat25 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowLat25",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat26 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowLat26",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat27 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowLat27",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat28 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowLat28",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+
+  G4VPhysicalVolume* fPhysAraWindowLat29 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowLat29",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat210 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowLat210",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat211 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowLat211",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat212 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowLat212",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat31 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowLat31",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat32 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowLat32",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat33 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowLat33",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat34 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowLat34",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat35 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowLat35",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat36 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowLat36",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat37 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowLat37",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat38 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowLat38",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+
+  G4VPhysicalVolume* fPhysAraWindowLat39 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowLat39",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat310 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowLat310",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat311 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowLat311",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat312 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowLat312",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat41 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowLat41",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat42 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowLat42",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat43 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowLat43",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat44 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowLat44",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat45 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowLat45",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat46 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowLat46",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat47 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowLat47",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat48 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowLat48",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+
+  G4VPhysicalVolume* fPhysAraWindowLat49 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowLat49",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat410 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowLat410",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat411 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowLat411",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLat412 = new G4PVPlacement(0,G4ThreeVector((fCryostat_x/2-fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowLat412",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+G4VPhysicalVolume* fPhysAraWindowLlat11 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowLlat11",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat12 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowLlat12",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat13 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowLlat13",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat14 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowLlat14",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat15 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowLlat15",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat16 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowLlat16",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat17 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowLlat17",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat18 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowLlat18",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+
+  G4VPhysicalVolume* fPhysAraWindowLlat19 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowLlat19",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat110 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowLlat110",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat111 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowLlat111",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat112 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowLlat112",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat21 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowLlat21",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat22 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowLlat22",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat23 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowLlat23",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat24 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowLlat24",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat25 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowLlat25",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat26 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowLlat26",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat27 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowLlat27",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat28 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowLlat28",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+
+  G4VPhysicalVolume* fPhysAraWindowLlat29 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowLlat29",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat210 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowLlat210",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat211 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowLlat211",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat212 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+1.69)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowLlat212",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat31 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowLlat31",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat32 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowLlat32",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat33 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowLlat33",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat34 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowLlat34",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat35 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowLlat35",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat36 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowLlat36",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat37 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowLlat37",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat38 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowLlat38",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+
+  G4VPhysicalVolume* fPhysAraWindowLlat39 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowLlat39",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat310 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowLlat310",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat311 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowLlat311",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat312 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+2*1.69)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowLlat312",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat41 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowLlat41",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat42 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowLlat42",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat43 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowLlat43",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat44 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowLlat44",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat45 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowLlat45",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat46 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowLlat46",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat47 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowLlat47",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat48 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowLlat48",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+
+  G4VPhysicalVolume* fPhysAraWindowLlat49 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowLlat49",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat410 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowLlat410",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat411 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowLlat411",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowLlat412 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+fthickness/4)*m,(-fCryostat_y/2+0.845+3*1.69)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowLlat412",
+                                 fLogicAraWindowLat,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+
+  G4Box* AraWindowBot = new G4Box("ArapucaWindowBot",fwindow/2*m,fthickness/4*m,fwindow/2*m);
+  G4LogicalVolume* fLogicAraWindowBot = new G4LogicalVolume(AraWindowBot,facrylic,"ArapucaWindowBot");
+  G4VPhysicalVolume* fPhysAraWindowBot11 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowBot11",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot12 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowBot12",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot13 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*2)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowBot13",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot14 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*3)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowBot14",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot15 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*4)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowBot15",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot16 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*5)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowBot16",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot17 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*6)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowBot17",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot18 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*7)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+14*1.5)*m),"ArapucaWindowBot18",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot21 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowBot21",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot22 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowBot22",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot23 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*2)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowBot23",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot24 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*3)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowBot24",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot25 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*4)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowBot25",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot26 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*5)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowBot26",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot27 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*6)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowBot27",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot28 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*7)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+15*1.5)*m),"ArapucaWindowBot28",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot31 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowBot31",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot32 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowBot32",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot33 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*2)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowBot33",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot34 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*3)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowBot34",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot35 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*4)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowBot35",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot36 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*5)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowBot36",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot37 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*6)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowBot37",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot38 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*7)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+16*1.5)*m),"ArapucaWindowBot38",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot41 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowBot41",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot42 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowBot42",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot43 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*2)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowBot43",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot44 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*3)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowBot44",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot45 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*4)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowBot45",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot46 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*5)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowBot46",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot47 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*6)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowBot47",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot48 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*7)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+17*1.5)*m),"ArapucaWindowBot48",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot51 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowBot51",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot52 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowBot52",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot53 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*2)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowBot53",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot54 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*3)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowBot54",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot55 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*4)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowBot55",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot56 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*5)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowBot56",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot57 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*6)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowBot57",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot58 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*7)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+18*1.5)*m),"ArapucaWindowBot58",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot61 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowBot61",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot62 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowBot62",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot63 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*2)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowBot63",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot64 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*3)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowBot64",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot65 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*4)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowBot65",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot66 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*5)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowBot66",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot67 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*6)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowBot67",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot68 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*7)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+19*1.5)*m),"ArapucaWindowBot68",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot71 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowBot71",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot72 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowBot72",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot73 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*2)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowBot73",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot74 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*3)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowBot74",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot75 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*4)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowBot75",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot76 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*5)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowBot76",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot77 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*6)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowBot77",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot78 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*7)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+20*1.5)*m),"ArapucaWindowBot78",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot81 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowBot81",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot82 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowBot82",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot83 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*2)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowBot83",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot84 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*3)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowBot84",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot85 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*4)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowBot85",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot86 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*5)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowBot86",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot87 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*6)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowBot87",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot88 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*7)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+21*1.5)*m),"ArapucaWindowBot88",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot91 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowBot91",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot92 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowBot92",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot93 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*2)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowBot93",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot94 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*3)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowBot94",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot95 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*4)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowBot95",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot96 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*5)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowBot96",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot97 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*6)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowBot97",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot98 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*7)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+22*1.5)*m),"ArapucaWindowBot98",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot101 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowBot101",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot102 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowBot102",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot103 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*2)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowBot103",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot104 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*3)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowBot104",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot105 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*4)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowBot105",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot106 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*5)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowBot106",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot107 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*6)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowBot107",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot108 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*7)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+23*1.5)*m),"ArapucaWindowBot108",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot111 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowBot111",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot112 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowBot112",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot113 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*2)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowBot113",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot114 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*3)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowBot114",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot115 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*4)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowBot115",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot116 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*5)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowBot116",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot117 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*6)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowBot117",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot118 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*7)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+24*1.5)*m),"ArapucaWindowBot118",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot121 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowBot121",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot122 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowBot122",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot123 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*2)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowBot123",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot124 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*3)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowBot124",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot125 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*4)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowBot125",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot126 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*5)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowBot126",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot127 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*6)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowBot127",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+  G4VPhysicalVolume* fPhysAraWindowBot128 = new G4PVPlacement(0,G4ThreeVector((-fCryostat_x/2+0.84375+1.6875*7)*m,(-fCryostat_y/2+fthickness/4)*m,(-fCryostat_z/2+0.75+25*1.5)*m),"ArapucaWindowBot128",
+                                 fLogicAraWindowBot,     //its logical volume
+                                 fPhysCryostat,    	//its mother  volume
+                                 false,			//no boolean operation
+				 0,
+				 true); //check for overlaps
+
+
+  //Surfaces setup
+
+  //lAr-Anode interface
+
+  G4OpticalSurface* AnodeSurface = new G4OpticalSurface("AnodeSurface");
+  AnodeSurface->SetType(dielectric_metal);
+  AnodeSurface->SetModel(unified);
+  AnodeSurface->SetFinish(ground);
+  AnodeSurface->SetSigmaAlpha(0.0*deg); // for vikuit
+  
+  const G4int nEntries = 8;
+  G4double PhotonEnergy[nEntries] =
+    { 2.5*eV, 5.0*eV, 7.0*eV, 7.5*eV, 8.0*eV, 9.0*eV, 9.5*eV, 10.136*eV};
+
+  G4double Anode_r[nEntries] = {0.25, 0.25, 0.25, 0.25, 0.0, 0.0, 0.0, 0.0}; //reflection coef for base
+  //G4double Anode_r[nEntries] = {0.5, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0}; //reflection coef for base
+  G4double Anode_e[nEntries] = {0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0}; //absorption coefficient
+
+  G4MaterialPropertiesTable* AnodeSurface_pt = new G4MaterialPropertiesTable();
+
+  AnodeSurface_pt->AddProperty("REFLECTIVITY", PhotonEnergy, Anode_r, nEntries);
+  AnodeSurface_pt->AddProperty("EFFICIENCY", PhotonEnergy, Anode_e, nEntries);
+
+  AnodeSurface->SetMaterialPropertiesTable(AnodeSurface_pt);
+  new G4LogicalSkinSurface("AnodeSurface", fLogicAnode, AnodeSurface);
+  
+  G4VisAttributes* simpleWorldVisAtt= new G4VisAttributes(G4Colour(1.0,1.0,1.0)); //White
+  simpleWorldVisAtt->SetVisibility(true);
+  
+  //G4VisAttributes* simplePlain= new G4VisAttributes(G4Colour(1.0,1.0,1.0,0.4));   
+  G4VisAttributes* simplePlain= new G4VisAttributes(G4Colour(1.0,1.0,1.0,0.5)); //White
+  simplePlain->SetVisibility(true);
+  simplePlain->SetForceSolid(true);
+  simplePlain->SetForceAuxEdgeVisible(true);
+   
+  //G4VisAttributes* simpleBoxAtt= new G4VisAttributes(G4Colour(1.0,1.0,0.0,0.3));
+  G4VisAttributes* simpleBoxAtt= new G4VisAttributes(G4Colour(1.0,1.0,0.0,0.5));
+  simpleBoxAtt->SetDaughtersInvisible(true);
+  simpleBoxAtt->SetForceSolid(true);
+  simpleBoxAtt->SetForceAuxEdgeVisible(true);
+  
+  G4VisAttributes* simpleBoxAttKGM= new G4VisAttributes(G4Colour(0.0,0.0,1.0,1.0));
+  simpleBoxAttKGM->SetVisibility(true);
+  simpleBoxAttKGM->SetForceWireframe(true);
+  simpleBoxAttKGM->SetDaughtersInvisible(false);
+  simpleBoxAttKGM->SetForceSolid(true);
+
+  G4VisAttributes* BoxAtt= new G4VisAttributes(G4Colour(1.0,0.0,0.0,1.0));
+  BoxAtt->SetDaughtersInvisible(true);
+  BoxAtt->SetForceSolid(true);
+  BoxAtt->SetForceAuxEdgeVisible(true);
+
+  //  fLogicCathode->SetVisAttributes(simpleBoxAtt);
+  fLogicAraWindowLat->SetVisAttributes(simpleBoxAttKGM);
+  //  fLogicAraWindowTop->SetVisAttributes(simpleBoxAttKGM);
+  fLogicAraWindowBot->SetVisAttributes(simpleBoxAttKGM);
+  fLogicFC->SetVisAttributes(simplePlain);
+  fLogicCathode->SetVisAttributes(simplePlain);
+  return fPhysiWorld;
+}
+
+

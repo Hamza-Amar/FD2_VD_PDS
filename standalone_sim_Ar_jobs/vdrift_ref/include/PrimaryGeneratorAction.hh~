@@ -1,0 +1,41 @@
+// Arapuca simulation
+// Authors: L. Paulucci & F. Marinho
+// Date: 20th September 2016
+//
+// Added modifications should be reported in arapuca.cc header comments
+
+#ifndef PrimaryGeneratorAction_h
+#define PrimaryGeneratorAction_h 1
+
+#include "G4VUserPrimaryGeneratorAction.hh"
+#include "G4ParticleGun.hh"
+#include "G4ThreeVector.hh"
+#include "TF1.h"
+class G4Event;
+
+class PrimaryGeneratorAction : public G4VUserPrimaryGeneratorAction
+{
+public:
+  PrimaryGeneratorAction();    
+  PrimaryGeneratorAction(double x, double y, double z);    
+  ~PrimaryGeneratorAction();
+
+  void GeneratePrimaries(G4Event*);
+  G4ThreeVector Polarisation(G4ThreeVector d);
+
+private:
+  G4ParticleGun*           fParticleGun;
+  double x0;
+  double y0;
+  double z0;
+  TF1* fde;
+  TF1* fr;
+  TF1* p;
+  TF1* rc;
+  TF1* rt;
+  
+};
+
+#endif
+
+
